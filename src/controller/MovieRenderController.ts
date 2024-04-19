@@ -5,36 +5,25 @@ import ErrorPage from '../components/ErrorPage/ErrorPage';
 import { RULES } from '../constants/rule';
 import { $ } from '../utils/dom';
 import { ALERT_MESSAGE, ERROR_MESSAGE, TITLE } from '../constants/messages';
-import throttle from '../utils/throttle';
 import SkeletonItem from '../components/SkeletonItem/SkeletonItem';
 
 class MovieRenderController {
   static ARRIVE_SCROLL_PERCENTAGE = 0.97;
+  #flag = true;
   #page = 1;
   #query = '';
   #movies;
-  #scrollEvent;
+  #observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (this.#flag && entry.isIntersecting) {
+        this.renderNextPage();
+        this.#flag = false;
+      }
+    }, 0.5);
+  });
 
   constructor() {
     this.#movies = new Movies();
-    this.#scrollEvent = throttle(this.#onScroll.bind(this), 300);
-  }
-
-  #onScroll() {
-    const topButton = $('.top-button') as HTMLButtonElement;
-    const documentHeight = document.body.scrollHeight;
-    const presentHeight = window.scrollY + window.innerHeight;
-
-    if (window.scrollY === 0) {
-      topButton.classList.add('hide-top-button');
-    } else {
-      topButton.classList.remove('hide-top-button');
-    }
-
-    if (presentHeight / documentHeight > MovieRenderController.ARRIVE_SCROLL_PERCENTAGE) {
-      document.removeEventListener('scroll', this.#scrollEvent);
-      this.renderNextPage();
-    }
   }
 
   render(query: string = '') {
@@ -57,8 +46,6 @@ class MovieRenderController {
     if (this.#page > RULES.maxPage) {
       const alert = $('.alert-container') as HTMLDivElement;
       const alertText = $('.alert-text') as HTMLSpanElement;
-
-      document.removeEventListener('scroll', this.#scrollEvent);
 
       alert.classList.remove('hidden');
       alertText.textContent = ALERT_MESSAGE.lastPage;
@@ -99,11 +86,15 @@ class MovieRenderController {
     this.#createMovieItems(movieData).forEach((movieItem) => {
       $('.skeleton-item')?.insertAdjacentElement('beforebegin', movieItem);
     });
+
+    const movieItems = document.querySelectorAll('.movie-item');
+    this.#observer.observe(movieItems[movieItems.length - 1]);
+
     this.#toggleSkeletonItems();
     this.#page += 1;
 
     if (movieData.length === RULES.moviesPerPage) {
-      document.addEventListener('scroll', this.#scrollEvent);
+      this.#flag = true;
     }
   }
 
